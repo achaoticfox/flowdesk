@@ -128,8 +128,13 @@ export default async function ProjectsPage({
                   </div>
                 )}
 
-                <div className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-500">
-                  Freelancer links and milestones coming next.
+                <div className="mt-4 border-t border-slate-100 pt-4 flex items-center justify-between">
+                  <span className="text-sm text-slate-500">
+                    {project.contract_type === 'hourly' ? 'Hourly' : 'Fixed price'} · {project.approval_model === 'milestone_based' ? 'Milestone-based' : project.approval_model === 'task_based' ? 'Task-based' : 'Ongoing review'}
+                  </span>
+                  <Link href={`/projects/${project.id}`}>
+                    <Button variant="outline" size="sm">Open Project →</Button>
+                  </Link>
                 </div>
               </div>
             ))}

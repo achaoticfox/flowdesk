@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import type { Project } from '@/types'
+import AddMilestoneForm from '@/components/milestones/AddMilestoneForm'
+import MilestoneCard from '@/components/milestones/MilestoneCard'
 
 const STATUS_LABELS: Record<Project['status'], string> = {
   draft: 'Draft',
@@ -58,7 +60,7 @@ export default async function ProjectPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: project }, { data: links }] = await Promise.all([
+  const [{ data: project }, { data: links }, { data: milestones }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', id).eq('user_id', user.id).single(),
     supabase
       .from('freelancer_project_links')
@@ -66,6 +68,12 @@ export default async function ProjectPage({
       .eq('project_id', id)
       .eq('user_id', user.id)
       .order('created_at'),
+    supabase
+      .from('milestones')
+      .select('*')
+      .eq('project_id', id)
+      .eq('user_id', user.id)
+      .order('due_date', { ascending: true, nullsFirst: false }),
   ])
 
   if (!project) notFound()
@@ -180,6 +188,34 @@ export default async function ProjectPage({
                 <p className="text-sm text-slate-500">No freelancers linked yet.</p>
               )}
             </div>
+
+            {/* Milestones */}
+            {project.contract_type === 'fixed_price' && project.approval_model === 'milestone_based' && (
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-slate-900">Milestones</h2>
+                  <AddMilestoneForm projectId={id} />
+                </div>
+
+                {milestones && milestones.length > 0 ? (
+                  <div className="space-y-3">
+                    {milestones.map((m) => (
+                      <MilestoneCard key={m.id} milestone={m} projectId={id} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">No milestones yet. Add the first one above.</p>
+                )}
+
+                {milestones && milestones.length > 0 && (
+                  <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    Total: ${milestones.reduce((sum, m) => sum + (Number(m.amount) || 0), 0).toLocaleString()}
+                    {' · '}
+                    {milestones.filter(m => m.status === 'approved' || m.status === 'paid').length}/{milestones.length} approved
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Documentation notes */}
             {project.documentation_notes && (

@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -24,17 +23,13 @@ export default async function DashboardPage() {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
-
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-slate-900">FlowDesk</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{user.email}</span>
+            <span className="text-sm text-slate-600">{user?.email}</span>
             <form action="/auth/signout" method="post">
               <button type="submit" className="text-sm text-blue-600 hover:underline">
                 Sign out

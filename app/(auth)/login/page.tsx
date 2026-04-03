@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { supabase } from '@/lib/supabase/client'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,10 +19,14 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    console.log('Attempting login...')
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
+
+    console.log('Login response:', { data, error })
 
     if (error) {
       setError(error.message)
@@ -33,8 +35,13 @@ export default function LoginPage() {
     }
 
     if (data.session) {
+      console.log('Login successful, redirecting...')
       // Force a full page navigation to ensure cookies are set
       window.location.href = '/dashboard'
+    } else {
+      console.log('No session returned')
+      setError('Login failed - no session created')
+      setLoading(false)
     }
   }
 

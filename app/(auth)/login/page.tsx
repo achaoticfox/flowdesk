@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+
+// Create client directly in component to avoid module issues
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,28 +23,34 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    console.log('Attempting login...')
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      console.log('Creating Supabase client...')
+      const supabase = createClient(supabaseUrl, supabaseAnonKey)
+      
+      console.log('Attempting login with:', email)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    console.log('Login response:', { data, error })
+      console.log('Result:', { hasSession: !!data.session, error: error?.message })
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
 
-    if (data.session) {
-      console.log('Login successful, redirecting...')
-      // Force a full page navigation to ensure cookies are set
-      window.location.href = '/dashboard'
-    } else {
-      console.log('No session returned')
-      setError('Login failed - no session created')
+      if (data.session) {
+        console.log('Success! Redirecting...')
+        window.location.href = '/dashboard'
+      } else {
+        setError('No session created')
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('Exception:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
       setLoading(false)
     }
   }

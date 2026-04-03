@@ -2,17 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient } from '@supabase/supabase-js'
-
-// Create client directly in component to avoid module issues
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,36 +21,21 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    try {
-      console.log('Creating Supabase client...')
-      const supabase = createClient(supabaseUrl, supabaseAnonKey)
-      
-      console.log('Attempting login with:', email)
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+    const supabase = createClient()
 
-      console.log('Result:', { hasSession: !!data.session, error: error?.message })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-        return
-      }
-
-      if (data.session) {
-        console.log('Success! Redirecting...')
-        window.location.href = '/dashboard'
-      } else {
-        setError('No session created')
-        setLoading(false)
-      }
-    } catch (err) {
-      console.error('Exception:', err)
-      setError(err instanceof Error ? err.message : 'Unknown error')
+    if (error) {
+      setError(error.message)
       setLoading(false)
+      return
     }
+
+    router.replace('/dashboard')
+    router.refresh()
   }
 
   return (
@@ -85,9 +68,7 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && (
-              <p className="text-sm text-red-600">{error}</p>
-            )}
+            {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>

@@ -1,27 +1,29 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import { Button } from '@/components/ui/button'
 
-export default async function DashboardPage() {
-  const cookieStore = await cookies()
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
-
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ created?: string }>
+}) {
+  const params = await searchParams
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const [
+    { count: freelancerCount },
+    { count: projectCount },
+    { count: pendingCount },
+    { count: paymentFlagCount },
+  ] = await Promise.all([
+    supabase.from('freelancers').select('*', { count: 'exact', head: true }),
+    supabase.from('projects').select('*', { count: 'exact', head: true }).in('status', ['active', 'assigned']),
+    supabase.from('deliverables').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+    supabase.from('deliverables').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+  ])
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -29,7 +31,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-slate-900">FlowDesk</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-600">{user?.email}</span>
+            <span className="text-sm text-slate-600">{user.email}</span>
             <form action="/auth/signout" method="post">
               <button type="submit" className="text-sm text-blue-600 hover:underline">
                 Sign out
@@ -38,37 +40,56 @@ export default async function DashboardPage() {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-            <h2 className="text-lg font-medium text-slate-900 mb-2">Freelancers</h2>
-            <p className="text-3xl font-bold text-slate-900">0</p>
-            <p className="text-sm text-slate-600 mt-1">Active roster</p>
+        {params.created === 'freelancer' && (
+          <div className="mb-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            Freelancer created.
           </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-            <h2 className="text-lg font-medium text-slate-900 mb-2">Pending Approvals</h2>
-            <p className="text-3xl font-bold text-slate-900">0</p>
-            <p className="text-sm text-slate-600 mt-1">Deliverables awaiting review</p>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <p className="text-sm font-medium text-slate-600">Freelancers</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{freelancerCount ?? 0}</p>
+            <p className="mt-1 text-xs text-slate-500">Talent profiles</p>
           </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-            <h2 className="text-lg font-medium text-slate-900 mb-2">Payment Flags</h2>
-            <p className="text-3xl font-bold text-slate-900">0</p>
-            <p className="text-sm text-slate-600 mt-1">Approved but unpaid</p>
+          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <p className="text-sm font-medium text-slate-600">Active Projects</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{projectCount ?? 0}</p>
+            <p className="mt-1 text-xs text-slate-500">Assigned or active</p>
+          </div>
+          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <p className="text-sm font-medium text-slate-600">Pending Approvals</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{pendingCount ?? 0}</p>
+            <p className="mt-1 text-xs text-slate-500">Submitted deliverables</p>
+          </div>
+          <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+            <p className="text-sm font-medium text-slate-600">Payment Flags</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{paymentFlagCount ?? 0}</p>
+            <p className="mt-1 text-xs text-slate-500">Approved but unpaid</p>
           </div>
         </div>
-        
-        <div className="mt-8 bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
-          <h3 className="text-lg font-medium text-slate-900 mb-2">Get Started</h3>
-          <p className="text-slate-600 mb-4">Add your first freelancer to start tracking your team.</p>
-          <a 
-            href="/freelancers/new" 
-            className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            Add Freelancer
-          </a>
+
+        {/* Quick actions */}
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Link href="/projects" className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300 transition-colors">
+            <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">Projects</p>
+            <p className="mt-1 text-sm text-slate-500">View all projects and their status</p>
+          </Link>
+          <Link href="/projects/new" className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300 transition-colors">
+            <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">New Project</p>
+            <p className="mt-1 text-sm text-slate-500">Create a project brief</p>
+          </Link>
+          <Link href="/freelancers" className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300 transition-colors">
+            <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">Freelancers</p>
+            <p className="mt-1 text-sm text-slate-500">View your talent roster</p>
+          </Link>
+          <Link href="/freelancers/new" className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300 transition-colors">
+            <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">Add Freelancer</p>
+            <p className="mt-1 text-sm text-slate-500">Create a reusable talent profile</p>
+          </Link>
         </div>
       </main>
     </div>
